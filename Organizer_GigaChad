@@ -1,0 +1,179 @@
+import os
+import shutil
+from collections import defaultdict
+
+
+def handle_file_conflict(src_path, dest_path):
+    """
+    Handle file conflicts when moving files.
+    Offers options to overwrite, rename, or skip.
+
+    Args:
+        src_path (str): Source file path
+        dest_path (str): Destination file path
+
+    Returns:
+        str: Action taken ('overwritten', 'renamed', 'skipped')
+    """
+    print(f"\nConflict detected: File already exists at destination")
+    print(f"Source: {src_path}")
+    print(f"Destination: {dest_path}")
+
+    while True:
+        print("\nChoose an option:")
+        print("1. Overwrite (delete existing file)")
+        print("2. Rename new file (keep both)")
+        print("3. Skip this file")
+        print("4. Rename existing file (keep both)")
+
+        choice = input("Enter your choice (1-4): ").strip()
+
+        if choice == '1':  # Overwrite
+            os.remove(dest_path)
+            shutil.move(src_path, dest_path)
+            return 'overwritten'
+        elif choice == '2':  # Rename new file
+            base, ext = os.path.splitext(os.path.basename(src_path))
+            counter = 1
+            while True:
+                new_name = f"{base}_{counter}{ext}"
+                new_path = os.path.join(os.path.dirname(dest_path), new_name)
+                if not os.path.exists(new_path):
+                    shutil.move(src_path, new_path)
+                    print(f"Renamed to: {new_name}")
+                    return 'renamed'
+                counter += 1
+        elif choice == '3':  # Skip
+            return 'skipped'
+        elif choice == '4':  # Rename existing file
+            base, ext = os.path.splitext(os.path.basename(dest_path))
+            counter = 1
+            while True:
+                new_name = f"{base}_{counter}{ext}"
+                new_path = os.path.join(os.path.dirname(dest_path), new_name)
+                if not os.path.exists(new_path):
+                    os.rename(dest_path, new_path)
+                    print(f"Renamed existing to: {new_name}")
+                    shutil.move(src_path, dest_path)
+                    return 'renamed_existing'
+                counter += 1
+        else:
+            print("Invalid choice. Please try again.")
+
+
+def organize_files(path):
+    """
+    Organize files in the given directory by their extensions.
+    Creates subdirectories for each file type and moves files accordingly.
+
+    Args:
+        path (str): Directory path to organize
+    """
+    # Validate the input path
+    if not os.path.exists(path):
+        print(f"Error: The path '{path}' does not exist.")
+        return
+    if not os.path.isdir(path):
+        print(f"Error: '{path}' is not a directory.")
+        return
+
+    print(f"\nOrganizing files in: {path}")
+
+    # Counters for statistics
+    stats = defaultdict(int)
+    conflict_stats = {
+        'overwritten': 0,
+        'renamed': 0,
+        'skipped': 0,
+        'renamed_existing': 0
+    }
+    skipped_files = []
+
+    try:
+        # Iterate through all files in the directory
+        for filename in os.listdir(path):
+            file_path = os.path.join(path, filename)
+
+            # Skip directories
+            if os.path.isdir(file_path):
+                continue
+
+            # Get file extension (without the dot)
+            _, extension = os.path.splitext(filename)
+            extension = extension[1:].lower()  # lowercase for consistency
+
+            # Skip files without extension
+            if not extension:
+                skipped_files.append(filename)
+                continue
+
+            # Create destination folder path
+            destination_folder = os.path.join(path, extension)
+
+            try:
+                # Create folder if it doesn't exist
+                if not os.path.exists(destination_folder):
+                    os.makedirs(destination_folder)
+                    print(f"Created folder: {extension}")
+
+                # Prepare destination path
+                destination_path = os.path.join(destination_folder, filename)
+
+                if not os.path.exists(destination_path):
+                    shutil.move(file_path, destination_path)
+                    stats[extension] += 1
+                else:
+                    # Handle file conflict
+                    action = handle_file_conflict(file_path, destination_path)
+                    conflict_stats[action] += 1
+                    if action == 'skipped':
+                        skipped_files.append(filename)
+                    else:
+                        stats[extension] += 1
+
+            except (OSError, shutil.Error) as e:
+                print(f"Error moving '{filename}': {str(e)}")
+                skipped_files.append(filename)
+
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        return
+
+    # Print summary
+    print("\nOrganization complete!")
+    print(f"\nFiles moved by type:")
+    for ext, count in stats.items():
+        print(f"{ext.upper()}: {count} files")
+
+    if any(conflict_stats.values()):
+        print("\nConflict resolution:")
+        print(f"Overwritten: {conflict_stats['overwritten']}")
+        print(f"Renamed new files: {conflict_stats['renamed']}")
+        print(f"Renamed existing files: {conflict_stats['renamed_existing']}")
+        print(f"Skipped: {conflict_stats['skipped']}")
+
+    if skipped_files:
+        print(f"\nFiles skipped ({len(skipped_files)}):")
+        for filename in skipped_files:
+            print(f"- {filename}")
+
+
+if __name__ == "__main__":
+    print("=== Advanced File Organizer ===")
+    print("This script organizes files by their extensions into subfolders.")
+    print("It handles conflicts by offering multiple resolution options.\n")
+
+    while True:
+        path = input("Enter directory path (or 'q' to quit): ").strip()
+
+        if path.lower() == 'q':
+            break
+
+        organize_files(path)
+
+        # Ask if user wants to continue
+        choice = input("\nOrganize another folder? (y/n): ").lower()
+        if choice != 'y':
+            break
+
+    print("\nThank you for using File Organizer!")
